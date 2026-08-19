@@ -36,16 +36,44 @@ export interface AuthResult {
   username: string;
 }
 
-const API_BASE = '';
+/*
+ * Backend API URL.
+ *
+ * Local development:
+ *   If VITE_API_URL is not defined, API_BASE is empty
+ *   and the frontend uses the same origin.
+ *
+ * Production:
+ *   VITE_API_URL=https://codesync-backend-740b.onrender.com
+ */
+export const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+
+/*
+ * WebSocket backend URL.
+ *
+ * Production:
+ *   https://codesync-backend-740b.onrender.com
+ * becomes:
+ *   wss://codesync-backend-740b.onrender.com
+ *
+ * Local development:
+ *   If VITE_API_URL is not defined, use the current host.
+ */
+export const WS_BASE = API_BASE
+  ? API_BASE.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:')
+  : `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`;
+
 const TOKEN_KEY = 'codesync_token';
 const USERNAME_KEY = 'codesync_username';
 
 export function getStoredAuth(): AuthResult | null {
   const token = localStorage.getItem(TOKEN_KEY);
   const username = localStorage.getItem(USERNAME_KEY);
+
   if (!token || !username) {
     return null;
   }
+
   return { token, username };
 }
 
@@ -62,38 +90,64 @@ export function clearStoredAuth() {
 async function handleJsonResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     let message = `Request failed (${response.status})`;
+
     try {
       const body = await response.json();
+
       if (body?.error) {
         message = body.error;
       }
     } catch {
-      // ignore body parse failure, use default message
+      // Ignore JSON parsing errors.
     }
+
     throw new Error(message);
   }
+
   return response.json();
 }
 
 function authHeaders(token: string | null): HeadersInit {
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  return token
+    ? {
+        Authorization: `Bearer ${token}`,
+      }
+    : {};
 }
 
-export async function register(username: string, password: string): Promise<AuthResult> {
+export async function register(
+  username: string,
+  password: string
+): Promise<AuthResult> {
   const response = await fetch(`${API_BASE}/auth/register`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password }),
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      username,
+      password,
+    }),
   });
+
   return handleJsonResponse<AuthResult>(response);
 }
 
-export async function login(username: string, password: string): Promise<AuthResult> {
+export async function login(
+  username: string,
+  password: string
+): Promise<AuthResult> {
   const response = await fetch(`${API_BASE}/auth/login`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password }),
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      username,
+      password,
+    }),
   });
+
   return handleJsonResponse<AuthResult>(response);
 }
 
@@ -104,16 +158,22 @@ export async function logout(token: string): Promise<void> {
   });
 }
 
-export async function createRoom(token: string | null): Promise<Room> {
+export async function createRoom(
+  token: string | null
+): Promise<Room> {
   const response = await fetch(`${API_BASE}/room/create`, {
     method: 'POST',
     headers: authHeaders(token),
   });
+
   return handleJsonResponse<Room>(response);
 }
 
 export async function getRoom(roomId: string): Promise<Room> {
-  const response = await fetch(`${API_BASE}/room/${encodeURIComponent(roomId)}`);
+  const response = await fetch(
+    `${API_BASE}/room/${encodeURIComponent(roomId)}`
+  );
+
   return handleJsonResponse<Room>(response);
 }
 
@@ -131,27 +191,39 @@ export async function executeCode(
   code: string,
   stdin = '',
   path?: string | null,
-  args: string[] = [],
+  args: string[] = []
 ): Promise<ExecuteResult> {
-  const payload: any = { language, code, stdin };
+  const payload: any = {
+    language,
+    code,
+    stdin,
+  };
+
   if (path) {
     payload.path = path;
   }
+
   if (args.length > 0) {
     payload.args = args;
   }
 
   const response = await fetch(`${API_BASE}/execute`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+    },
     body: JSON.stringify(payload),
   });
+
   return handleJsonResponse<ExecuteResult>(response);
 }
 
-export async function getMyRooms(token: string): Promise<RoomSummary[]> {
+export async function getMyRooms(
+  token: string
+): Promise<RoomSummary[]> {
   const response = await fetch(`${API_BASE}/rooms/mine`, {
     headers: authHeaders(token),
   });
+
   return handleJsonResponse<RoomSummary[]>(response);
 }
