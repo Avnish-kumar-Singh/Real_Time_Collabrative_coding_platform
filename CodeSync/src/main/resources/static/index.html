@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CodeSync</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: system-ui, sans-serif;
+            max-width: 960px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+            background: #0f172a;
+            color: #e2e8f0;
+        }
+        h1 { margin-bottom: 0.25rem; }
+        p { color: #94a3b8; }
+        .toolbar { display: flex; gap: 0.75rem; margin: 1rem 0; flex-wrap: wrap; }
+        button, input {
+            padding: 0.6rem 1rem;
+            border-radius: 8px;
+            border: 1px solid #334155;
+            background: #1e293b;
+            color: #e2e8f0;
+        }
+        button { cursor: pointer; }
+        button:hover { background: #334155; }
+        #roomId { min-width: 220px; }
+        #status { margin: 0.5rem 0 1rem; font-size: 0.95rem; }
+        textarea {
+            width: 100%;
+            min-height: 420px;
+            padding: 1rem;
+            border-radius: 12px;
+            border: 1px solid #334155;
+            background: #020617;
+            color: #e2e8f0;
+            font-family: Consolas, monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            resize: vertical;
+        }
+    </style>
+</head>
+<body>
+    <h1>CodeSync</h1>
+    <p>Real-time collaborative coding demo. Open this page in two tabs with the same room ID.</p>
+
+    <div class="toolbar">
+        <button id="createRoom">Create Room</button>
+        <input id="roomId" placeholder="Room ID" />
+        <button id="joinRoom">Join Room</button>
+    </div>
+
+    <div id="status">Create or join a room to start.</div>
+    <textarea id="editor" placeholder="Start coding..." disabled></textarea>
+
+    <script>
+        const editor = document.getElementById('editor');
+        const roomInput = document.getElementById('roomId');
+        const status = document.getElementById('status');
+        let socket = null;
+        let applyingRemoteUpdate = false;
+
+        document.getElementById('createRoom').addEventListener('click', async () => {
+            const response = await fetch('/room/create', { method: 'POST' });
+            const room = await response.json();
+            roomInput.value = room.roomId;
+            connect(room.roomId);
+        });
+
+        document.getElementById('joinRoom').addEventListener('click', () => {
+            const roomId = roomInput.value.trim();
+            if (!roomId) {
+                status.textContent = 'Enter a room ID first.';
+                return;
+            }
+            connect(roomId);
+        });
+
+        editor.addEventListener('input', () => {
+            if (!socket || socket.readyState !== WebSocket.OPEN || applyingRemoteUpdate) {
+                return;
+            }
+
+            socket.send(JSON.stringify({
+                type: 'CODE_UPDATE',
+                content: editor.value
+            }));
+        });
+
+        function connect(roomId) {
+            if (socket) {
+                socket.close();
+            }
+
+            const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
+            socket = new WebSocket(`${protocol}://${location.host}/code?roomId=${encodeURIComponent(roomId)}`);
+
+            socket.onopen = () => {
+                editor.disabled = false;
+                status.textContent = `Connected to room ${roomId}`;
+            };
+
+            socket.onmessage = (event) => {
+                const message = JSON.parse(event.data);
+
+                if (message.type === 'SYNC' || message.type === 'CODE_UPDATE') {
+                    applyingRemoteUpdate = true;
+                    editor.value = message.content ?? '';
+                    applyingRemoteUpdate = false;
+                }
+
+                if (message.type === 'ERROR') {
+                    status.textContent = message.content;
+                }
+            };
+
+            socket.onclose = () => {
+                editor.disabled = true;
+                status.textContent = 'Disconnected.';
+            };
+
+            socket.onerror = () => {
+                status.textContent = 'Connection failed. Check that the room exists.';
+            };
+        }
+    </script>
+</body>
+</html>
