@@ -12,5 +12,19 @@ services:
     tmpfs:
       - /piston/jobs:exec
 
+  postgres:
+    image: postgres:16
+    container_name: codesync_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: codesync
+      POSTGRES_USER: codesync
+      POSTGRES_PASSWORD: codesync_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
 volumes:
   piston-packages:
+  postgres-data:

@@ -1,12 +1,11 @@
 package com.codesync.model;
 
+import java.time.Instant;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
-
-import java.time.Instant;
 
 @Entity
 @Table(name = "rooms")
@@ -15,8 +14,7 @@ public class Room {
     @Id
     private String roomId;
 
-    @Lob
-    @Column(columnDefinition = "CLOB")
+    @Column(columnDefinition = "TEXT")
     private String code;
 
     private String language = "javascript";
